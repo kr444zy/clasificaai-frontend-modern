@@ -49,30 +49,50 @@ export default function ChatWindow() {
     };
     persist(threads.map((t) => (t.id === active.id ? updated : t)));
 
-    const url = API_BASE ? `${API_BASE}/api/chat` : "/api/chat";
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        messages: updated.messages.map(({ role, content }) => ({ role, content })),
-        attachments: attachments || []
-      }),
-    });
-    const data = await res.json();
+    try {
+      const url = API_BASE ? `${API_BASE}/api/chat` : "/api/chat";
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: updated.messages.map(({ role, content }) => ({ role, content })),
+          attachments: attachments || [],
+        }),
+      });
 
-    const assistantMsg: ChatMessage = {
-      id: uuidv4(),
-      role: "assistant",
-      content: data.reply || "Sin respuesta del servidor.",
-      createdAt: Date.now(),
-    };
+      if (!res.ok) {
+        throw new Error(`Error del servidor: ${res.status}`);
+      }
 
-    const updated2: ChatThread = {
-      ...updated,
-      messages: [...updated.messages, assistantMsg],
-      updatedAt: Date.now(),
-    };
-    persist(threads.map((t) => (t.id === active.id ? updated2 : t)));
+      const data = await res.json();
+
+      const assistantMsg: ChatMessage = {
+        id: uuidv4(),
+        role: "assistant",
+        content: data.reply || "⚠️ El servidor no envió ninguna respuesta.",
+        createdAt: Date.now(),
+      };
+
+      const updated2: ChatThread = {
+        ...updated,
+        messages: [...updated.messages, assistantMsg],
+        updatedAt: Date.now(),
+      };
+      persist(threads.map((t) => (t.id === active.id ? updated2 : t)));
+    } catch (err: any) {
+      const errorMsg: ChatMessage = {
+        id: uuidv4(),
+        role: "assistant",
+        content: `❌ Error al conectar con el servidor: ${err.message || err}`,
+        createdAt: Date.now(),
+      };
+      const updated2: ChatThread = {
+        ...updated,
+        messages: [...updated.messages, errorMsg],
+        updatedAt: Date.now(),
+      };
+      persist(threads.map((t) => (t.id === active.id ? updated2 : t)));
+    }
   }
 
   return (
