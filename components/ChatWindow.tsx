@@ -6,6 +6,8 @@ import MessageBubble from "./MessageBubble";
 import ChatInput from "./ChatInput";
 import { ChatMessage, ChatThread, loadThreads, saveThreads } from "@/lib/storage";
 
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "";
+
 export default function ChatWindow() {
   const [threads, setThreads] = useState<ChatThread[]>([]);
   const [activeId, setActiveId] = useState<string | undefined>(undefined);
@@ -28,19 +30,6 @@ export default function ChatWindow() {
     saveThreads(next);
   }
 
-  function newThread() {
-    const id = uuidv4();
-    const now = Date.now();
-    const thread: ChatThread = { id, title: "Nuevo chat", messages: [], createdAt: now, updatedAt: now };
-    const next = [thread, ...threads];
-    persist(next);
-    setActiveId(id);
-  }
-
-  function setActive(id: string) {
-    setActiveId(id);
-  }
-
   async function handleSend(text: string, attachments: any[]) {
     if (!active) return;
 
@@ -58,15 +47,15 @@ export default function ChatWindow() {
       messages: [...active.messages, userMsg],
       updatedAt: Date.now(),
     };
-    const nextThreads = threads.map((t) => (t.id === active.id ? updated : t));
-    persist(nextThreads);
+    persist(threads.map((t) => (t.id === active.id ? updated : t)));
 
-    // Call mock API for now
-    const res = await fetch("/api/chat", {
+    const url = API_BASE ? `${API_BASE}/api/chat` : "/api/chat";
+    const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         messages: updated.messages.map(({ role, content }) => ({ role, content })),
+        attachments: attachments || []
       }),
     });
     const data = await res.json();
@@ -74,7 +63,7 @@ export default function ChatWindow() {
     const assistantMsg: ChatMessage = {
       id: uuidv4(),
       role: "assistant",
-      content: data.reply,
+      content: data.reply || "Sin respuesta del servidor.",
       createdAt: Date.now(),
     };
 
@@ -83,8 +72,7 @@ export default function ChatWindow() {
       messages: [...updated.messages, assistantMsg],
       updatedAt: Date.now(),
     };
-    const next2 = threads.map((t) => (t.id === active.id ? updated2 : t));
-    persist(next2);
+    persist(threads.map((t) => (t.id === active.id ? updated2 : t)));
   }
 
   return (
@@ -104,7 +92,7 @@ export default function ChatWindow() {
       <div className="border-t p-4">
         <ChatInput onSend={handleSend} />
         <div className="text-[11px] opacity-60 mt-2">
-          * Demo local — adjuntos listados pero no se suben al servidor. Integra un almacenamiento (S3, Cloud Storage) si necesitás persistirlos.
+          * Conectado a {API_BASE || "API interna (demo)"}.
         </div>
       </div>
     </div>
